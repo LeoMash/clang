@@ -249,7 +249,7 @@
   <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets" Condition="'$(VSToolsPath)' != ''" />
   <Import Project="$(MSBuildExtensionsPath32)\Microsoft\VisualStudio\v10.0\VSSDK\Microsoft.VsSDK.targets" Condition="false" />
   <PropertyGroup>
-    <PreBuildEvent>if not exist $(ProjectDir)Key.snk ("$(FrameworkSDKDir)Bin\NETFX 4.6 Tools\sn.exe" -k $(ProjectDir)Key.snk)</PreBuildEvent>
+    <PreBuildEvent>if not exist $(ProjectDir)Key.snk ("$(FrameworkSDKDir)Bin\NETFX 4.6.2 Tools\sn.exe" -k $(ProjectDir)Key.snk)</PreBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.
