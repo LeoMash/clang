@@ -260,6 +260,8 @@ struct ScalarEnumerationTraits<FormatStyle::SpaceBeforeParensOptions> {
     IO.enumCase(Value, "Never", FormatStyle::SBPO_Never);
     IO.enumCase(Value, "ControlStatements",
                 FormatStyle::SBPO_ControlStatements);
+    IO.enumCase(Value, "FunctionDeclarations",
+                FormatStyle::SBPO_FunctionDeclarations);
     IO.enumCase(Value, "Always", FormatStyle::SBPO_Always);
 
     // For backward compatibility.
@@ -318,6 +320,13 @@ template <> struct MappingTraits<FormatStyle> {
                    Style.AlignConsecutiveAssignments);
     IO.mapOptional("AlignConsecutiveDeclarations",
                    Style.AlignConsecutiveDeclarations);
+    IO.mapOptional("AlignConsecutiveInFunctionBody", Style.AlignConsecutiveInFunctionBody);
+    IO.mapOptional("AlignConsecutiveMethodParameters",
+                   Style.AlignConsecutiveMethodParameters);
+    IO.mapOptional("AlignConsecutiveMethodModifiers",
+                   Style.AlignConsecutiveMethodModifiers);
+    IO.mapOptional("AlignConsecutiveMethodInlineImplementation",
+                   Style.AlignConsecutiveMethodInlineImplementation);
     IO.mapOptional("AlignEscapedNewlines", Style.AlignEscapedNewlines);
     IO.mapOptional("AlignOperands", Style.AlignOperands);
     IO.mapOptional("AlignTrailingComments", Style.AlignTrailingComments);
@@ -418,6 +427,15 @@ template <> struct MappingTraits<FormatStyle> {
     IO.mapOptional("JavaScriptWrapImports", Style.JavaScriptWrapImports);
     IO.mapOptional("KeepEmptyLinesAtTheStartOfBlocks",
                    Style.KeepEmptyLinesAtTheStartOfBlocks);
+    IO.mapOptional("MinEmptyLinesBetweenFunctions",
+                   Style.MinEmptyLinesBetweenBlocks); // TODO remove deprecated
+    IO.mapOptional(
+        "MinEmptyLinesBetweenFunctionsInBlocks",
+        Style.MinEmptyLinesBetweenBlocksInBlocks); // TODO remove deprecated
+    IO.mapOptional("MinEmptyLinesBetweenBlocks",
+                   Style.MinEmptyLinesBetweenBlocks);
+    IO.mapOptional("MinEmptyLinesBetweenBlocksInBlocks",
+                   Style.MinEmptyLinesBetweenBlocksInBlocks);
     IO.mapOptional("MacroBlockBegin", Style.MacroBlockBegin);
     IO.mapOptional("MacroBlockEnd", Style.MacroBlockEnd);
     IO.mapOptional("MaxEmptyLinesToKeep", Style.MaxEmptyLinesToKeep);
@@ -627,6 +645,10 @@ FormatStyle getLLVMStyle() {
   LLVMStyle.AlignTrailingComments = true;
   LLVMStyle.AlignConsecutiveAssignments = false;
   LLVMStyle.AlignConsecutiveDeclarations = false;
+  LLVMStyle.AlignConsecutiveInFunctionBody = true;
+  LLVMStyle.AlignConsecutiveMethodParameters = false;
+  LLVMStyle.AlignConsecutiveMethodModifiers = false;
+  LLVMStyle.AlignConsecutiveMethodInlineImplementation = false;
   LLVMStyle.AllowAllParametersOfDeclarationOnNextLine = true;
   LLVMStyle.AllowShortFunctionsOnASingleLine = FormatStyle::SFS_All;
   LLVMStyle.AllowShortBlocksOnASingleLine = false;
@@ -677,6 +699,8 @@ FormatStyle getLLVMStyle() {
   LLVMStyle.TabWidth = 8;
   LLVMStyle.MaxEmptyLinesToKeep = 1;
   LLVMStyle.KeepEmptyLinesAtTheStartOfBlocks = true;
+  LLVMStyle.MinEmptyLinesBetweenBlocks = 0;
+  LLVMStyle.MinEmptyLinesBetweenBlocksInBlocks = 0;
   LLVMStyle.NamespaceIndentation = FormatStyle::NI_None;
   LLVMStyle.ObjCBinPackProtocolList = FormatStyle::BPS_Auto;
   LLVMStyle.ObjCBlockIndentWidth = 2;
@@ -1159,7 +1183,7 @@ public:
     Annotator.setCommentLineLevels(AnnotatedLines);
 
     WhitespaceManager Whitespaces(
-        Env.getSourceManager(), Style,
+        Env.getSourceManager(), Style, Tokens.getKeywords(),
         inputUsesCRLF(Env.getSourceManager().getBufferData(Env.getFileID())));
     ContinuationIndenter Indenter(Style, Tokens.getKeywords(),
                                   Env.getSourceManager(), Whitespaces, Encoding,

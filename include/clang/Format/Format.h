@@ -100,6 +100,44 @@ struct FormatStyle {
   /// \endcode
   bool AlignConsecutiveDeclarations;
 
+  /// If ``false``, aligns consecutive declarations and assignments would
+  /// not applied in function bodies.
+  bool AlignConsecutiveInFunctionBody;
+
+  /// If ``true``, aligns parameters in consecutive methods declarations.
+  ///
+  /// This will align the method declaration parameters of consecutive lines.
+  /// This will result in formattings like
+  /// \code
+  ///   int Aaaaa();
+  ///   float b  (int x);
+  ///   bool ccc (void);
+  /// \endcode
+  bool AlignConsecutiveMethodParameters;
+
+  /// If ``true``, aligns modifiers in consecutive methods declarations.
+  ///
+  /// This will align the method declaration modifiers of consecutive lines.
+  /// This will result in formattings like
+  /// \code
+  ///   int Aaaaa ()    const;
+  ///   float b (int x) override;
+  ///   bool ccc(void)  const override;
+  /// \endcode
+  bool AlignConsecutiveMethodModifiers;
+
+  /// If ``true``, aligns inline implementation in consecutive methods
+  /// declarations.
+  ///
+  /// This will align the method inline implementation of consecutive lines.
+  /// This will result in formattings like
+  /// \code
+  ///   int Aaaaa()      { return 1; }
+  ///   float b  (int x) { return M_PI; }
+  ///   bool ccc (void)  { return false; }
+  /// \endcode
+  bool AlignConsecutiveMethodInlineImplementation;
+
   /// Different styles for aligning escaped newlines.
   enum EscapedNewlineAlignmentStyle {
     /// Don't align escaped newlines.
@@ -1170,6 +1208,12 @@ struct FormatStyle {
   /// \endcode
   bool KeepEmptyLinesAtTheStartOfBlocks;
 
+  /// Minimal empty lines between non inline functions or classes in global scope.
+  int MinEmptyLinesBetweenBlocks;
+
+  /// Minimal empty lines between non inline functions or classes in non global scope.
+  int MinEmptyLinesBetweenBlocksInBlocks;
+  
   /// Supported languages.
   ///
   /// When stored in a configuration file, specifies the language, that the
@@ -1544,6 +1588,16 @@ struct FormatStyle {
     ///    }
     /// \endcode
     SBPO_ControlStatements,
+    /// Put a space before opening parentheses only after control statement
+    /// keywords and in function declaration.
+    /// \code
+    ///    void f () {
+    ///      if (true) {
+    ///        f();
+    ///      }
+    ///    }
+    /// \endcode
+    SBPO_FunctionDeclarations,
     /// Always put a space before opening parentheses, except when it's
     /// prohibited by the syntax rules (in function-like macro definitions) or
     /// when determined by other style rules (after unary operators, opening
@@ -1677,6 +1731,13 @@ struct FormatStyle {
            AlignAfterOpenBracket == R.AlignAfterOpenBracket &&
            AlignConsecutiveAssignments == R.AlignConsecutiveAssignments &&
            AlignConsecutiveDeclarations == R.AlignConsecutiveDeclarations &&
+           AlignConsecutiveInFunctionBody && R.AlignConsecutiveInFunctionBody &&
+           AlignConsecutiveMethodParameters ==
+               R.AlignConsecutiveMethodParameters &&
+           AlignConsecutiveMethodModifiers ==
+               R.AlignConsecutiveMethodModifiers &&
+           AlignConsecutiveMethodInlineImplementation ==
+               R.AlignConsecutiveMethodInlineImplementation &&
            AlignEscapedNewlines == R.AlignEscapedNewlines &&
            AlignOperands == R.AlignOperands &&
            AlignTrailingComments == R.AlignTrailingComments &&
@@ -1728,6 +1789,9 @@ struct FormatStyle {
            JavaScriptWrapImports == R.JavaScriptWrapImports &&
            KeepEmptyLinesAtTheStartOfBlocks ==
                R.KeepEmptyLinesAtTheStartOfBlocks &&
+           MinEmptyLinesBetweenBlocks == R.MinEmptyLinesBetweenBlocks &&
+           MinEmptyLinesBetweenBlocksInBlocks ==
+               R.MinEmptyLinesBetweenBlocksInBlocks &&
            MacroBlockBegin == R.MacroBlockBegin &&
            MacroBlockEnd == R.MacroBlockEnd &&
            MaxEmptyLinesToKeep == R.MaxEmptyLinesToKeep &&

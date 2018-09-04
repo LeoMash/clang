@@ -866,7 +866,7 @@ private:
         consumeToken();
         if (CurrentToken &&
             CurrentToken->Previous->isOneOf(TT_BinaryOperator, TT_UnaryOperator,
-                                            tok::comma))
+                                            tok::comma, tok::kw_new, tok::kw_delete))
           CurrentToken->Previous->Type = TT_OverloadedOperator;
       }
       if (CurrentToken) {
@@ -1473,7 +1473,8 @@ private:
       return false;
 
     // Empty parens aren't casts and there are no casts at the end of the line.
-    if (Tok.Previous == Tok.MatchingParen || !Tok.Next || !Tok.MatchingParen)
+    if (Tok.Previous == Tok.MatchingParen || !Tok.Next || !Tok.MatchingParen ||
+        Tok.MatchingParen->is(TT_OverloadedOperatorLParen))
       return false;
 
     FormatToken *LeftOfParens = Tok.MatchingParen->getPreviousNonComment();
@@ -2043,6 +2044,58 @@ static bool isFunctionDeclarationName(const FormatToken &Current,
   return false;
 }
 
+// This function heuristically determines whether 'Current' starts the name of a
+// constructor declaration.
+static bool isConstructorDeclarationName(const FormatToken &Current,
+                                         const AnnotatedLine &Line) {
+  if (!Current.is(tok::identifier) || Current.NestingLevel != 0)
+    return false;
+
+  const FormatToken *Next = Current.Next;
+  while (Next && Next->is(tok::coloncolon)) {
+     Next = Next->Next;
+     if (Next->is(tok::identifier))
+        Next = Next->Next;
+     else
+        break;
+  }
+
+  // Check whether parameter list can belong to a constructor declaration.
+  if (!Next || !Next->is(tok::l_paren) || !Next->MatchingParen)
+    return false;
+
+  // If there is something before name, this is not a constructor
+  const FormatToken *Prev = Current.getPreviousNonComment();
+  if (Prev && !Prev->is(tok::tilde) &&
+      !(Prev->is(tok::greater) && Prev->MatchingParen &&
+        Prev->MatchingParen->Previous &&
+        Prev->MatchingParen->Previous->is(tok::kw_template)))
+    return false;
+
+  // If the lines ends with "{", this is likely an constructor definition.
+  if (Line.Last->is(tok::l_brace))
+    return true;
+  if (Next->Next == Next->MatchingParen)
+    return true; // Empty parentheses.
+  // If there is an ":" after the r_paren, this is likely a constructor.
+  if (Next->MatchingParen->Next && Next->MatchingParen->Next->is(tok::colon))
+    return true;
+  for (const FormatToken *Tok = Next->Next; Tok && Tok != Next->MatchingParen;
+       Tok = Tok->Next) {
+    if (Tok->is(tok::l_paren) && Tok->MatchingParen) {
+      Tok = Tok->MatchingParen;
+      continue;
+    }
+    if (Tok->is(tok::kw_const) || Tok->isSimpleTypeSpecifier() ||
+        Tok->isOneOf(TT_PointerOrReference, TT_StartOfName, tok::ellipsis))
+      return true;
+    if (Tok->isOneOf(tok::l_brace, tok::string_literal, TT_ObjCMethodExpr) ||
+        Tok->Tok.isLiteral())
+      return false;
+  }
+  return false;
+}
+
 bool TokenAnnotator::mustBreakForReturnType(const AnnotatedLine &Line) const {
   assert(Line.MightBeFunctionDecl);
 
@@ -2066,6 +2119,19 @@ bool TokenAnnotator::mustBreakForReturnType(const AnnotatedLine &Line) const {
   return false;
 }
 
+static bool isFunctionDeclarationName(const FormatToken *Tok) {
+  while (Tok && Tok->is(tok::identifier)) {
+    if (Tok->isOneOf(TT_FunctionDeclarationName, TT_CtorDeclarationName))
+      return true;
+    Tok = Tok->Previous;
+    if (!Tok || !Tok->is(tok::coloncolon))
+      break;
+    Tok = Tok->Previous;
+  }
+
+  return false;
+}
+
 void TokenAnnotator::calculateFormattingInformation(AnnotatedLine &Line) {
   for (SmallVectorImpl<AnnotatedLine *>::iterator I = Line.Children.begin(),
                                                   E = Line.Children.end();
@@ -2078,9 +2144,16 @@ void TokenAnnotator::calculateFormattingInformation(AnnotatedLine &Line) {
                               : Line.FirstStartColumn + Line.First->ColumnWidth;
   FormatToken *Current = Line.First->Next;
   bool InFunctionDecl = Line.MightBeFunctionDecl;
+  if (InFunctionDecl) {
+    if (isConstructorDeclarationName(*Line.First, Line))
+      Line.First->Type = TT_CtorDeclarationName;
+  }
+
   while (Current) {
     if (isFunctionDeclarationName(*Current, Line))
-      Current->Type = TT_FunctionDeclarationName;
+       Current->Type = TT_FunctionDeclarationName;
+    else if (isConstructorDeclarationName(*Current, Line))
+       Current->Type = TT_CtorDeclarationName;
     if (Current->is(TT_LineComment)) {
       if (Current->Previous->BlockKind == BK_BracedInit &&
           Current->Previous->opensScope())
@@ -2116,9 +2189,12 @@ void TokenAnnotator::calculateFormattingInformation(AnnotatedLine &Line) {
     Current->MustBreakBefore =
         Current->MustBreakBefore || mustBreakBefore(Line, *Current);
 
-    if (!Current->MustBreakBefore && InFunctionDecl &&
-        Current->is(TT_FunctionDeclarationName))
-      Current->MustBreakBefore = mustBreakForReturnType(Line);
+    if (!Current->MustBreakBefore && InFunctionDecl) {
+      if (Current->is(TT_FunctionDeclarationName) ||
+          (Current->is(tok::kw_operator) && Current->Next && Current->Next->is(TT_OverloadedOperator)
+             && (!Current->Previous || !Current->Previous->is(tok::coloncolon))))
+        Current->MustBreakBefore = mustBreakForReturnType(Line);
+    }
 
     Current->CanBreakBefore =
         Current->MustBreakBefore || canBreakBefore(Line, *Current);
@@ -2531,6 +2607,8 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
              (Left.isOneOf(tok::kw_try, Keywords.kw___except, tok::kw_catch,
                            tok::kw_new, tok::kw_delete) &&
               (!Left.Previous || Left.Previous->isNot(tok::period))))) ||
+           (Style.SpaceBeforeParens == FormatStyle::SBPO_FunctionDeclarations &&
+            (isFunctionDeclarationName(&Left))) ||
            (Style.SpaceBeforeParens == FormatStyle::SBPO_Always &&
             (Left.is(tok::identifier) || Left.isFunctionLikeKeyword() ||
              Left.is(tok::r_paren)) &&
@@ -2721,7 +2799,7 @@ bool TokenAnnotator::spaceRequiredBefore(const AnnotatedLine &Line,
       Left.isOneOf(TT_TrailingReturnArrow, TT_LambdaArrow))
     return true;
   if (Right.is(TT_OverloadedOperatorLParen))
-    return Style.SpaceBeforeParens == FormatStyle::SBPO_Always;
+    return Style.SpaceBeforeParens >= FormatStyle::SBPO_FunctionDeclarations;
   if (Left.is(tok::comma))
     return true;
   if (Right.is(tok::comma))

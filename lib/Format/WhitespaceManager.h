@@ -38,8 +38,9 @@ namespace format {
 class WhitespaceManager {
 public:
   WhitespaceManager(const SourceManager &SourceMgr, const FormatStyle &Style,
-                    bool UseCRLF)
-      : SourceMgr(SourceMgr), Style(Style), UseCRLF(UseCRLF) {}
+                    const AdditionalKeywords &Keywords, bool UseCRLF)
+      : SourceMgr(SourceMgr), Style(Style), Keywords(Keywords),
+        UseCRLF(UseCRLF) {}
 
   /// Replaces the whitespace in front of \p Tok. Only call once for
   /// each \c AnnotatedToken.
@@ -176,6 +177,17 @@ private:
   /// Align consecutive declarations over all \c Changes.
   void alignConsecutiveDeclarations();
 
+  /// Align consecutive methods declarations parameters over all \c
+  /// Changes.
+  void alignConsecutiveMethodParameters();
+
+  /// Align consecutive methods declarations modifiers over all \c
+  /// Changes.
+  void alignConsecutiveMethodModifiers();
+
+  /// Align consecutive inline method implementation over all \c Changes.
+  void alignConsecutiveMethodInlineImplementation();
+
   /// Align trailing comments over all \c Changes.
   void alignTrailingComments();
 
@@ -189,6 +201,9 @@ private:
   /// Align escaped newlines from change \p Start to change \p End at
   /// the specified \p Column.
   void alignEscapedNewlines(unsigned Start, unsigned End, unsigned Column);
+
+  /// Insert line breaks between code blocks
+  void fixLineBreaksBetweenBlocks();
 
   /// Fill \c Replaces with the replacements for all effective changes.
   void generateChanges();
@@ -206,6 +221,7 @@ private:
   const SourceManager &SourceMgr;
   tooling::Replacements Replaces;
   const FormatStyle &Style;
+  const AdditionalKeywords &Keywords;
   bool UseCRLF;
 };
 

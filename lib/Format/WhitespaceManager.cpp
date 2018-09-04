@@ -92,7 +92,11 @@ const tooling::Replacements &WhitespaceManager::generateReplacements() {
 
   llvm::sort(Changes.begin(), Changes.end(), Change::IsBeforeInFile(SourceMgr));
   calculateLineBreakInformation();
+  fixLineBreaksBetweenBlocks();
   alignConsecutiveDeclarations();
+  alignConsecutiveMethodParameters();
+  alignConsecutiveMethodModifiers();
+  alignConsecutiveMethodInlineImplementation();
   alignConsecutiveAssignments();
   alignTrailingComments();
   alignEscapedNewlines();
@@ -328,7 +332,7 @@ AlignTokenSequence(unsigned Start, unsigned End, unsigned Column, F &&Matches,
 template <typename F>
 static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
                             SmallVector<WhitespaceManager::Change, 16> &Changes,
-                            unsigned StartAt) {
+                            unsigned StartAt, bool WholeBlock = false, bool InsideFunctionBody = false) {
   unsigned MinColumn = 0;
   unsigned MaxColumn = UINT_MAX;
 
@@ -359,7 +363,8 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
   // We need to adjust the StartOfTokenColumn of each Change that is on a line
   // containing any matching token to be aligned and located after such token.
   auto AlignCurrentSequence = [&] {
-    if (StartOfSequence > 0 && StartOfSequence < EndOfSequence)
+    if (StartOfSequence > 0 && StartOfSequence < EndOfSequence &&
+        (!InsideFunctionBody || Style.AlignConsecutiveInFunctionBody))
       AlignTokenSequence(StartOfSequence, EndOfSequence, MinColumn, Matches,
                          Changes);
     MinColumn = 0;
@@ -367,6 +372,8 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
     StartOfSequence = 0;
     EndOfSequence = 0;
   };
+
+  unsigned FunctionBodyBraces = InsideFunctionBody ? 1 : 0;
 
   unsigned i = StartAt;
   for (unsigned e = Changes.size(); i != e; ++i) {
@@ -378,17 +385,31 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
       EndOfSequence = i;
       // If there is a blank line, or if the last line didn't contain any
       // matching token, the sequence ends here.
-      if (Changes[i].NewlinesBefore > 1 || !FoundMatchOnLine)
+      if (Changes[i].NewlinesBefore > 1 || (!FoundMatchOnLine && !WholeBlock))
         AlignCurrentSequence();
 
       FoundMatchOnLine = false;
+    }
+
+    if (InsideFunctionBody) {
+       if (Changes[i].Tok->is(tok::r_brace)) {
+          FunctionBodyBraces--;
+          if(FunctionBodyBraces == 0)
+             InsideFunctionBody = false;
+       } else if (Changes[i].Tok->is(tok::l_brace))
+          FunctionBodyBraces++;
+    }
+
+    if (Changes[i].Tok->is(TT_FunctionLBrace)) {
+       InsideFunctionBody = true;
+       FunctionBodyBraces = 1;
     }
 
     if (Changes[i].Tok->is(tok::comma)) {
       ++CommasBeforeMatch;
     } else if (Changes[i].indentAndNestingLevel() > IndentAndNestingLevel) {
       // Call AlignTokens recursively, skipping over this scope block.
-      unsigned StoppedAt = AlignTokens(Style, Matches, Changes, i);
+      unsigned StoppedAt = AlignTokens(Style, Matches, Changes, i, WholeBlock, InsideFunctionBody);
       i = StoppedAt - 1;
       continue;
     }
@@ -414,8 +435,7 @@ static unsigned AlignTokens(const FormatStyle &Style, F &&Matches,
     unsigned ChangeMaxColumn = Style.ColumnLimit - LineLengthAfter;
 
     // If we are restricted by the maximum column width, end the sequence.
-    if (ChangeMinColumn > MaxColumn || ChangeMaxColumn < MinColumn ||
-        CommasBeforeLastMatch != CommasBeforeMatch) {
+    if (ChangeMinColumn > MaxColumn || ChangeMaxColumn < MinColumn) {
       AlignCurrentSequence();
       StartOfSequence = i;
     }
@@ -467,6 +487,57 @@ void WhitespaceManager::alignConsecutiveDeclarations() {
                        C.Tok->is(tok::kw_operator);
               },
               Changes, /*StartAt=*/0);
+}
+
+void WhitespaceManager::alignConsecutiveMethodParameters() {
+  if (!Style.AlignConsecutiveMethodParameters)
+    return;
+
+  AlignTokens(Style,
+              [&](Change const &C) {
+                if (!C.Tok->is(tok::l_paren))
+                  return false;
+                if (C.Tok->is(TT_OverloadedOperatorLParen))
+                  return true;
+                if (&C == &Changes.front())
+                  return false;
+                auto PTok = (&C - 1)->Tok;
+                return PTok->is(TT_FunctionDeclarationName) ||
+                       PTok->is(TT_CtorDeclarationName);
+              },
+              Changes, /*StartAt=*/0, /*WholeBlock=*/true);
+}
+
+void WhitespaceManager::alignConsecutiveMethodModifiers() {
+  if (!Style.AlignConsecutiveMethodModifiers)
+    return;
+
+  AlignTokens(Style,
+              [&](Change const &C) {
+                if (&C != &Changes.front() && !(&C - 1)->Tok->is(tok::r_paren))
+                  return false;
+
+                return C.Tok->is(Keywords.kw_override) ||
+                       C.Tok->is(tok::kw_const);
+              },
+              Changes, /*StartAt=*/0, /*WholeBlock=*/true);
+}
+
+void WhitespaceManager::alignConsecutiveMethodInlineImplementation() {
+  if (!Style.AlignConsecutiveMethodInlineImplementation)
+    return;
+
+  AlignTokens(Style,
+              [&](Change const &C) {
+                if (!C.Tok->is(tok::l_brace))
+                  return false;
+                for (const FormatToken *T = C.Tok->Next; T; T = T->Next) {
+                  if (T->is(tok::r_brace))
+                    return true;
+                }
+                return false;
+              },
+              Changes, /*StartAt=*/0, /*WholeBlock=*/true);
 }
 
 void WhitespaceManager::alignTrailingComments() {
@@ -605,6 +676,146 @@ void WhitespaceManager::alignEscapedNewlines(unsigned Start, unsigned End,
       else
         C.EscapedNewlineColumn = Column;
     }
+  }
+}
+
+void WhitespaceManager::fixLineBreaksBetweenBlocks() {
+  unsigned NewlinesGlobal = Style.MinEmptyLinesBetweenBlocks + 1;
+  unsigned NewlinesBlocks = Style.MinEmptyLinesBetweenBlocksInBlocks + 1;
+  if (NewlinesGlobal <= 1 && NewlinesBlocks <= 1)
+    return;
+
+  auto mustInsertBefore = [&](unsigned &Index) {
+    if (Index == 0)
+      return false;
+
+    bool acceptComments = Changes[Index].NewlinesBefore == 1;
+    for (unsigned i = Index - 1; i != 0; i--) {
+      if (Changes[i].Tok->is(tok::comment)) {
+        if (acceptComments && Changes[i].NewlinesBefore > 0)
+          Index = i;
+        continue;
+      }
+      if (Changes[i].Tok->isOneOf(tok::semi, tok::r_brace))
+        return true;
+      break;
+    }
+    return false;
+  };
+
+  auto mustInsertAfter = [&](unsigned &Index) {
+    unsigned e = Changes.size();
+    for (unsigned i = Index; i != e; i++) {
+      if (Changes[i].Tok->is(tok::comment)) {
+        if (Changes[i].NewlinesBefore > 1)
+          return true;
+        Index = i + 1;
+      }
+      if (Changes[i].Tok->is(tok::r_brace))
+        return false;
+      if (Changes[i].Tok->is(tok::eof))
+         return false;
+
+      if (Changes[i].Tok->is(tok::hash)) {
+        i++;
+        if (i != e) {
+          if (Changes[i].Tok->is(tok::identifier) && Changes[i].Tok->TokenText == "ifdef")
+             return true;
+          if (Changes[i].Tok->is(tok::kw_if))
+             return true;
+        }
+
+        for (; i != e; i++) {
+          if (Changes[i].Tok->NewlinesBefore)
+             break;
+        }
+        Index = i;
+        i--;
+        continue;
+      }
+      break;
+    }
+    return true;
+  };
+
+  for (unsigned i = 0, e = Changes.size(); i != e; ++i) {
+    auto Newlines =
+        Changes[i].Tok->IndentLevel == 0 ? NewlinesGlobal : NewlinesBlocks;
+    if (Newlines <= 1)
+      continue;
+
+    bool HasNewlines = false;
+    unsigned Last = i;
+
+    if (Changes[i].Tok->isOneOf(TT_FunctionDeclarationName,
+                                TT_CtorDeclarationName,
+                                TT_OverloadedOperatorLParen)) {
+      for (; Last != e; Last++) {
+        if (Changes[Last].Tok->is(TT_FunctionLBrace)) {
+          // find function body end
+          auto indentAndNesting = Changes[Last].indentAndNestingLevel();
+          HasNewlines = Changes[Last].NewlinesBefore != 0;
+
+          for (Last++; Last != e; Last++) {
+            HasNewlines = HasNewlines || Changes[Last].NewlinesBefore != 0;
+
+            if (!Changes[Last].Tok->is(tok::r_brace))
+              continue;
+            if (Changes[Last].indentAndNestingLevel() == indentAndNesting) {
+              Last++;
+              break;
+            }
+          }
+          break;
+        }
+
+        if (Last < e && Changes[Last].Tok->is(tok::semi)) {
+          Last = e;
+          break;
+        }
+      }
+    } else if (Changes[i].Tok->is(tok::l_brace) &&
+               Changes[i].Tok->BlockKind == BK_Block &&
+               !Changes[i].Tok->isOneOf(TT_ObjCBlockLBrace, TT_DictLiteral,
+                                        TT_FunctionLBrace)) {
+      // find class body end
+      auto indentAndNesting = Changes[Last].indentAndNestingLevel();
+      HasNewlines = Changes[Last].NewlinesBefore != 0;
+
+      for (Last++; Last != e; Last++) {
+        HasNewlines = HasNewlines || Changes[Last].NewlinesBefore != 0;
+
+        if (!Changes[Last].Tok->is(tok::r_brace))
+          continue;
+        if (Changes[Last].indentAndNestingLevel() == indentAndNesting) {
+          Last++;
+          break;
+        }
+      }
+
+      if (Changes[Last].Tok->is(tok::semi))
+        Last++;
+    }
+
+    if (Last == e || !HasNewlines) {
+      continue;
+    }
+
+    unsigned First = i;
+    for (; First != 0; First--) {
+      if (Changes[First].NewlinesBefore != 0)
+        break;
+    }
+
+    if (Changes[First].NewlinesBefore < Newlines && mustInsertBefore(First))
+      Changes[First].NewlinesBefore = Newlines;
+
+    if (mustInsertAfter(Last) && Last < e &&
+        Changes[Last].NewlinesBefore < Newlines)
+      Changes[Last].NewlinesBefore = Newlines;
+
+    if(!Changes[i].Tok->is(tok::l_brace))
+      i = Last - 1;
   }
 }
 

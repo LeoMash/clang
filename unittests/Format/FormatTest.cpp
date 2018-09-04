@@ -12480,6 +12480,230 @@ TEST_F(FormatTest, GuessLanguageWithChildLines) {
       guessLanguage("foo.h", "#define FOO ({ foo(); ({ NSString *s; }) })"));
 }
 
+TEST_F(FormatTest, FormatFunctionConst) {
+  verifyFormat("class Test {\n  int f() const;\n};");
+  verifyFormat("class Test {\n  int f() const {}\n};");
+  verifyFormat("int Test::f() const {}");
+
+  verifyFormat("class Test {\n  inline int f() const;\n};");
+  verifyFormat("class Test {\n  inline int f() const {}\n};");
+
+  verifyFormat("class Test {\n  int operator->() const;\n};");
+  verifyFormat("class Test {\n  int operator->() const {}\n};");
+  verifyFormat("int Test::operator->() const {}");
+
+  verifyFormat("class Test {\n  int operator()() const;\n};");
+  verifyFormat("class Test {\n  int operator()() const {}\n};");
+  verifyFormat("int Test::operator()() const {}");
+}
+
+TEST_F(FormatTest, FormatMethodParameters) {
+  FormatStyle Style = getLLVMStyle();
+  Style.AlignConsecutiveMethodParameters = true;
+  verifyFormat("void Fooooo     ();\nint Fooo        ();\nLongTypeName Bar();",
+               Style);
+  verifyFormat("void A             (int a) const;\nint BBBBBBBBBBBBBBB(bool "
+               "b);\nLongTypeName C     (std::string s);",
+               Style);
+  verifyFormat("class Test {\n  Test      ();\n  ~Test     ();\n  int "
+               "GetInt(int id) const;\n};",
+               Style);
+
+  Style.AlignConsecutiveDeclarations = true;
+  verifyFormat(
+      "void         Fooooo();\nint          Fooo  ();\nLongTypeName Bar   ();",
+      Style);
+  verifyFormat(
+      "void         A              (int a) const;\nint          "
+      "BBBBBBBBBBBBBBB(bool b);\nLongTypeName C              (std::string s);",
+      Style);
+}
+
+TEST_F(FormatTest, FormatMethodModifiers) {
+  FormatStyle Style = getLLVMStyle();
+  Style.AlignConsecutiveMethodModifiers = true;
+  verifyFormat(
+      "void Fooooo() const;\nint Fooo()    override;\nLongTypeName Bar();",
+      Style);
+  verifyFormat("void A(int a)                 const;\nint BBBBBBBBBBBBBBB(bool "
+               "b)   const override;\nLongTypeName C(std::string s) override;",
+               Style);
+
+  Style.AlignConsecutiveDeclarations = true;
+  verifyFormat("void         Fooooo() const;\nint          Fooo()   "
+               "override;\nLongTypeName Bar();",
+               Style);
+  verifyFormat("void         A(int a)                const;\nint          "
+               "BBBBBBBBBBBBBBB(bool b) const override;\nLongTypeName "
+               "C(std::string s)        override;",
+               Style);
+
+  Style.AlignConsecutiveMethodParameters = true;
+  verifyFormat("void         Fooooo() const;\nint          Fooo  () "
+               "override;\nLongTypeName Bar   ();",
+               Style);
+  verifyFormat("void         A              (int a)         const;\nint        "
+               "  BBBBBBBBBBBBBBB(bool b)        const override;\nLongTypeName "
+               "C              (std::string s) override;",
+               Style);
+}
+
+TEST_F(FormatTest, FormatMethodInlineImplementation) {
+  FormatStyle Style = getLLVMStyle();
+  Style.AlignConsecutiveMethodInlineImplementation = true;
+  verifyFormat("void Fooooo() override {}\nint Fooo() const       { return 1; "
+               "}\nLongTypeName *Bar()    { return nullptr; }",
+               Style);
+  verifyFormat(
+      "void A(int a) const                        {}\nint BBBBBBBBBBBBBBB(bool "
+      "b) const override { return 2; }\nLongTypeName *C(std::string s) "
+      "override    { return nullptr; }",
+      Style);
+  verifyFormat("class Test {\n  Test()                   {}\n  ~Test()         "
+               "         {}\n  int GetInt(int id) const { return id; }\n};",
+               Style);
+
+  Style.AlignConsecutiveDeclarations = true;
+  verifyFormat(
+      "void          Fooooo() override {}\nint           Fooo() const      { "
+      "return 1; }\nLongTypeName *Bar()             { return nullptr; }",
+      Style);
+  verifyFormat(
+      "void          A(int a) const                         {}\nint           "
+      "BBBBBBBBBBBBBBB(bool b) const override { return 2; }\nLongTypeName "
+      "*C(std::string s) override              { return nullptr; }",
+      Style);
+
+  Style.AlignConsecutiveMethodParameters = true;
+  verifyFormat(
+      "void          Fooooo() override {}\nint           Fooo  () const    { "
+      "return 1; }\nLongTypeName *Bar   ()          { return nullptr; }",
+      Style);
+  verifyFormat("void          A     (int a) const            {}\nint           "
+               "BBBBBB(bool b) const override  { return 2; }\nLongTypeName *C  "
+               "   (std::string s) override { return nullptr; }",
+               Style);
+
+  Style.AlignConsecutiveMethodModifiers = true;
+  verifyFormat(
+      "void          A     (int a)         const          {}\nint           "
+      "BBBBBB(bool b)        const override { return 2; }\nLongTypeName *C     "
+      "(std::string s) override       { return nullptr; }",
+      Style);
+}
+
+TEST_F(FormatTest, FormatAssignmentsInFunction) {
+  FormatStyle Style = getLLVMStyle();
+  Style.AlignConsecutiveAssignments = true;
+  verifyFormat("void Test() {\n  int xxx   = 1;\n  bool isOk = true;\n  void "
+               "*ptr = nullptr;\n  //\n  float pi        = 3.14f;\n  "
+               "std::string str = \"Hello\";\n}",
+               Style);
+  verifyFormat("class Test {\n  int xxx   = 2;\n  bool isOk = true;\n  void "
+               "*ptr = nullptr;\n  //\n  float pi        = 3.14f;\n  "
+               "std::string str = \"Hello\";\n};",
+               Style);
+  verifyFormat(
+      "void Test() {\n  int xxx   = 1;\n  bool isOk = true;\n  void *ptr = "
+      "nullptr;\n  if (false) {\n    int a   = 1;\n    int bbb = 333;\n  }\n  "
+      "float pi        = 3.14f;\n  std::string str = \"Hello\";\n}",
+      Style);
+
+  Style.AlignConsecutiveInFunctionBody = false;
+  verifyFormat(
+      "void Test() {\n  int xxx = 3;\n  bool isOk = true;\n  void *ptr = "
+      "nullptr;\n  //\n  float pi = 3.14f;\n  std::string str = \"Hello\";\n}",
+      Style);
+  verifyFormat("class Test {\n  int xxx   = 4;\n  bool isOk = true;\n  void "
+               "*ptr = nullptr;\n  //\n  float pi        = 3.14f;\n  "
+               "std::string str = \"Hello\";\n};",
+               Style);
+  verifyFormat(
+      "void Test() {\n  int xxx = 1;\n  bool isOk = true;\n  void *ptr = "
+      "nullptr;\n  if (false) {\n    int a = 1;\n    int bbb = 333;\n  }\n  "
+      "float pi = 3.14f;\n  std::string str = \"Hello\";\n}",
+      Style);
+}
+
+TEST_F(FormatTest, FormatSpaceBeforeParensInFunctionDeclarations) {
+  FormatStyle Style = getLLVMStyle();
+  Style.SpaceBeforeParens = FormatStyle::SBPO_FunctionDeclarations;
+
+  verifyFormat("class Test {\n  int f () const;\n};", Style);
+  verifyFormat("class Test {\n  int f () const { return 0; }\n};", Style);
+  verifyFormat("class Test {\n  Test ();\n};", Style);
+  verifyFormat("class Test {\n  ~Test ();\n};", Style);
+  verifyFormat("int f ();", Style);
+  verifyFormat("int f () {}", Style);
+  verifyFormat("int Test::f () { return 1; }", Style);
+  verifyFormat("Test::Test () {}", Style);
+  verifyFormat("Test::~Test () {}", Style);
+  verifyFormat("class Test {\n  inline int f () const;\n};", Style);
+  verifyFormat("class Test {\n  inline int f () const { return 2; }\n};", Style);
+  verifyFormat("class Test {\n  int operator-> () const;\n};", Style);
+  verifyFormat("class Test {\n  int operator-> () const { return 3; }\n};", Style);
+  verifyFormat("class Test {\n  int operator() () const;\n};", Style);
+  verifyFormat("class Test {\n  int operator() () const {}\n};", Style);
+}
+
+TEST_F(FormatTest, FormatMinEmptyLinesBetweenFunctions) {
+  FormatStyle Style = getLLVMStyle();
+  Style.MinEmptyLinesBetweenBlocks = 3;
+  Style.MinEmptyLinesBetweenBlocksInBlocks = 1;
+  Style.AlwaysBreakTemplateDeclarations = FormatStyle::BTDS_Yes;
+
+  verifyFormat("int Foo() {\n  int x = 2;\n  int y = 2;\n  return x * "
+               "y;\n}\n\n\n\nfloat Bar() {\n  float num = Foo();\n  return num "
+               "+ 0.14f;\n}\n\n\n\nclass Test {\n  int Aaa() {\n    int x = 2 "
+               "+ 2;\n    return x;\n  }\n\n  bool Bbbb() const {\n    bool "
+               "ret = Aaa() == 4;\n    return ret;\n  }\n};",
+               Style);
+
+  verifyFormat("struct Aaa {\n  int Get() const;\n};\n\n\n\nclass Bbb {\n  "
+               "int Get();\n};",
+               Style);
+
+  verifyFormat(
+      "template <class T>\nclass Ccc {\n  int T Get();\n};\n\n\n\ntemplate "
+      "<>\nclass Ccc<int> {\n  int Get();\n};",
+      Style);
+
+  verifyFormat("class Bbb {\n  int Get();\n};\n\n\n\ntemplate <class "
+               "T>\nstruct Ccc {\n  int T Get();\n};",
+               Style);
+
+  verifyFormat(
+      "class Aaa {\n  int Get() const;\n};\n\n\n\nstruct Bbb {\n  int "
+      "Get();\n};\n\n\n\ntemplate <class T>\nclass Ccc {\n  int T "
+      "Get();\n};\n\n\n\ntemplate <>\nclass Ccc<int> {\n  int Get();\n};",
+      Style);
+
+  verifyFormat("class Aaa {\n  int Get() const;\n};\n\n\n\nint Foo() {\n  "
+               "int x = 1;\n  return x;\n}\n\n\n\ntemplate <class T>\nclass "
+               "Ccc {\n  int T Get();\n};",
+               Style);
+
+  verifyFormat("#ifdef _MACRO\nint Foo() {\n  int x = 0;\n  return "
+               "x;\n}\n#endif // _MACRO",
+               Style);
+
+  verifyFormat(
+      "#ifdef _ABC\nint Foo() {\n  int x = 0;\n  return x;\n}\n#endif // "
+      "_ABC\n\n\n\nint Bar() {\n  int b = 0;\n  return b;\n}",
+      Style);
+
+  verifyFormat(
+      "int Bar() {\n  int b = 0;\n  return b;\n}\n\n\n\n#ifdef _XYZ\nint Foo() "
+      "{\n  int x = 0;\n  return x;\n}\n#endif // _XYZ",
+      Style);
+
+  verifyFormat("int Abc() {\n  int b = 0;\n  return b;\n}\n\n\n\n#if "
+               "_ELSE\nint Foo() {\n  int x = 0;\n  return x;\n}\n#else\n"
+               "int Foo() {\n  int a = 1;\n  return a;\n}\n#endif // "
+               "_ELSE\n\n\n\nint Bar() {\n  int b = 0;\n  return b;\n}",
+               Style);
+}
+
 } // end namespace
 } // end namespace format
 } // end namespace clang
