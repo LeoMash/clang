@@ -12644,6 +12644,9 @@ TEST_F(FormatTest, FormatSpaceBeforeParensInFunctionDeclarations) {
   verifyFormat("class Test {\n  int operator-> () const { return 3; }\n};", Style);
   verifyFormat("class Test {\n  int operator() () const;\n};", Style);
   verifyFormat("class Test {\n  int operator() () const {}\n};", Style);
+
+  verifyFormat("auto x = new Test();", Style);
+  verifyFormat("auto x = apNEW Test();", Style);
 }
 
 TEST_F(FormatTest, FormatMinEmptyLinesBetweenFunctions) {
@@ -12702,6 +12705,17 @@ TEST_F(FormatTest, FormatMinEmptyLinesBetweenFunctions) {
                "int Foo() {\n  int a = 1;\n  return a;\n}\n#endif // "
                "_ELSE\n\n\n\nint Bar() {\n  int b = 0;\n  return b;\n}",
                Style);
+
+  // multiline macro-define
+  EXPECT_EQ("#define M(X) \\\n"
+            "  do {       \\\n"
+            "    (X);     \\\n"
+            "  } while (0)",
+            format(
+               "#define M(X)    \\\n"
+               "  do {         \\\n"
+               "    (X);      \\\n"
+               "  } while(0)", Style));
 }
 
 } // end namespace
