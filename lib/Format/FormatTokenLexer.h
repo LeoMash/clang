@@ -100,6 +100,7 @@ private:
   unsigned FirstInLineIndex;
   SmallVector<FormatToken *, 16> Tokens;
   SmallVector<IdentifierInfo *, 8> ForEachMacros;
+  SmallVector<IdentifierInfo *, 8> NewOperatorMacros;
 
   bool FormattingDisabled;
 

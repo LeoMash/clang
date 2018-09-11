@@ -703,6 +703,11 @@ void WhitespaceManager::fixLineBreaksBetweenBlocks() {
     return false;
   };
 
+#define M(X)                                                                   \
+  do {                                                                         \
+    (X);                                                                       \
+  } while (0)
+
   auto mustInsertAfter = [&](unsigned &Index) {
     unsigned e = Changes.size();
     for (unsigned i = Index; i != e; i++) {
@@ -754,10 +759,11 @@ void WhitespaceManager::fixLineBreaksBetweenBlocks() {
         if (Changes[Last].Tok->is(TT_FunctionLBrace)) {
           // find function body end
           auto indentAndNesting = Changes[Last].indentAndNestingLevel();
-          HasNewlines = Changes[Last].NewlinesBefore != 0;
+          HasNewlines = Changes[Last].NewlinesBefore != 0 && !Changes[Last].ContinuesPPDirective;
 
           for (Last++; Last != e; Last++) {
-            HasNewlines = HasNewlines || Changes[Last].NewlinesBefore != 0;
+            HasNewlines = HasNewlines || (Changes[Last].NewlinesBefore != 0 &&
+                                          !Changes[Last].ContinuesPPDirective);
 
             if (!Changes[Last].Tok->is(tok::r_brace))
               continue;
@@ -780,10 +786,11 @@ void WhitespaceManager::fixLineBreaksBetweenBlocks() {
                                         TT_FunctionLBrace)) {
       // find class body end
       auto indentAndNesting = Changes[Last].indentAndNestingLevel();
-      HasNewlines = Changes[Last].NewlinesBefore != 0;
+      HasNewlines = Changes[Last].NewlinesBefore != 0 && !Changes[Last].ContinuesPPDirective;
 
       for (Last++; Last != e; Last++) {
-        HasNewlines = HasNewlines || Changes[Last].NewlinesBefore != 0;
+        HasNewlines = HasNewlines || (Changes[Last].NewlinesBefore != 0 &&
+                                      !Changes[Last].ContinuesPPDirective);
 
         if (!Changes[Last].Tok->is(tok::r_brace))
           continue;

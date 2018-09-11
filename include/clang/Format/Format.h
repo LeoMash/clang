@@ -1089,6 +1089,10 @@ struct FormatStyle {
   /// For example: BOOST_FOREACH.
   std::vector<std::string> ForEachMacros;
 
+  /// A vector of macros that should be interpreted as new operator instead of
+  /// as identifier.
+  std::vector<std::string> NewOperatorMacros;
+
   tooling::IncludeStyle IncludeStyle;
 
   /// Indent case labels one level from the switch statement.
@@ -1779,6 +1783,7 @@ struct FormatStyle {
                R.ExperimentalAutoDetectBinPacking &&
            FixNamespaceComments == R.FixNamespaceComments &&
            ForEachMacros == R.ForEachMacros &&
+           NewOperatorMacros == R.NewOperatorMacros &&
            IncludeStyle.IncludeBlocks == R.IncludeStyle.IncludeBlocks &&
            IncludeStyle.IncludeCategories == R.IncludeStyle.IncludeCategories &&
            IndentCaseLabels == R.IndentCaseLabels &&

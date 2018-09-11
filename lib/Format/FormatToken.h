@@ -47,6 +47,7 @@ namespace format {
   TYPE(DesignatedInitializerPeriod)                                            \
   TYPE(DictLiteral)                                                            \
   TYPE(ForEachMacro)                                                           \
+  TYPE(NewOperatorMacro)                                                       \
   TYPE(FunctionAnnotationRParen)                                               \
   TYPE(FunctionDeclarationName)                                                \
   TYPE(FunctionLBrace)                                                         \

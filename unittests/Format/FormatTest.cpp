@@ -12645,6 +12645,7 @@ TEST_F(FormatTest, FormatSpaceBeforeParensInFunctionDeclarations) {
   verifyFormat("class Test {\n  int operator() () const;\n};", Style);
   verifyFormat("class Test {\n  int operator() () const {}\n};", Style);
 
+  Style.NewOperatorMacros.push_back("apNEW");
   verifyFormat("auto x = new Test();", Style);
   verifyFormat("auto x = apNEW Test();", Style);
 }
@@ -12654,6 +12655,7 @@ TEST_F(FormatTest, FormatMinEmptyLinesBetweenFunctions) {
   Style.MinEmptyLinesBetweenBlocks = 3;
   Style.MinEmptyLinesBetweenBlocksInBlocks = 1;
   Style.AlwaysBreakTemplateDeclarations = FormatStyle::BTDS_Yes;
+  Style.AlignEscapedNewlines = FormatStyle::ENAS_Left;
 
   verifyFormat("int Foo() {\n  int x = 2;\n  int y = 2;\n  return x * "
                "y;\n}\n\n\n\nfloat Bar() {\n  float num = Foo();\n  return num "
@@ -12707,15 +12709,10 @@ TEST_F(FormatTest, FormatMinEmptyLinesBetweenFunctions) {
                Style);
 
   // multiline macro-define
-  EXPECT_EQ("#define M(X) \\\n"
-            "  do {       \\\n"
-            "    (X);     \\\n"
-            "  } while (0)",
-            format(
-               "#define M(X)    \\\n"
-               "  do {         \\\n"
-               "    (X);      \\\n"
-               "  } while(0)", Style));
+  verifyFormat("#define M(X) \\\n"
+               "  do {       \\\n"
+               "    (X);     \\\n"
+               "  } while (0)", Style);
 }
 
 } // end namespace
