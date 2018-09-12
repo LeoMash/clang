@@ -1130,11 +1130,11 @@ private:
 
     // Reset token type in case we have already looked at it and then
     // recovered from an error (e.g. failure to find the matching >).
-    if (!CurrentToken->isOneOf(TT_LambdaLSquare, TT_ForEachMacro,
-                               TT_FunctionLBrace, TT_ImplicitStringLiteral,
-                               TT_InlineASMBrace, TT_JsFatArrow, TT_LambdaArrow,
-                               TT_OverloadedOperator, TT_RegexLiteral,
-                               TT_TemplateString, TT_ObjCStringLiteral))
+    if (!CurrentToken->isOneOf(
+            TT_LambdaLSquare, TT_ForEachMacro, TT_NewOperatorMacro,
+            TT_FunctionLBrace, TT_ImplicitStringLiteral, TT_InlineASMBrace,
+            TT_JsFatArrow, TT_LambdaArrow, TT_OverloadedOperator,
+            TT_RegexLiteral, TT_TemplateString, TT_ObjCStringLiteral))
       CurrentToken->Type = TT_Unknown;
     CurrentToken->Role.reset();
     CurrentToken->MatchingParen = nullptr;
@@ -1247,7 +1247,7 @@ private:
         Previous->Type = TT_PointerOrReference;
       if (Line.MustBeDeclaration && !Contexts.front().InCtorInitializer)
         Contexts.back().IsExpression = false;
-    } else if (Current.is(tok::kw_new)) {
+    } else if (Current.isOneOf(tok::kw_new, TT_NewOperatorMacro)) {
       Contexts.back().CanBeExpression = false;
     } else if (Current.isOneOf(tok::semi, tok::exclaim)) {
       // This should be the condition or increment in a for-loop.
@@ -1448,6 +1448,8 @@ private:
     bool IsPPKeyword = PreviousNotConst->is(tok::identifier) &&
                        PreviousNotConst->Previous &&
                        PreviousNotConst->Previous->is(tok::hash);
+    if (PreviousNotConst->is(TT_NewOperatorMacro))
+       IsPPKeyword = true;
 
     if (PreviousNotConst->is(TT_TemplateCloser))
       return PreviousNotConst && PreviousNotConst->MatchingParen &&
@@ -2605,7 +2607,7 @@ bool TokenAnnotator::spaceRequiredBetween(const AnnotatedLine &Line,
                           TT_ObjCForIn) ||
              Left.endsSequence(tok::kw_constexpr, tok::kw_if) ||
              (Left.isOneOf(tok::kw_try, Keywords.kw___except, tok::kw_catch,
-                           tok::kw_new, tok::kw_delete) &&
+                           tok::kw_new, tok::kw_delete, TT_NewOperatorMacro) &&
               (!Left.Previous || Left.Previous->isNot(tok::period))))) ||
            (Style.SpaceBeforeParens == FormatStyle::SBPO_FunctionDeclarations &&
             (isFunctionDeclarationName(&Left))) ||

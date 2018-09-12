@@ -39,6 +39,10 @@ FormatTokenLexer::FormatTokenLexer(const SourceManager &SourceMgr, FileID ID,
   for (const std::string &ForEachMacro : Style.ForEachMacros)
     ForEachMacros.push_back(&IdentTable.get(ForEachMacro));
   llvm::sort(ForEachMacros.begin(), ForEachMacros.end());
+
+  for (const std::string &NewOperatorMacro : Style.NewOperatorMacros)
+    NewOperatorMacros.push_back(&IdentTable.get(NewOperatorMacro));
+  llvm::sort(NewOperatorMacros.begin(), NewOperatorMacros.end());
 }
 
 ArrayRef<FormatToken *> FormatTokenLexer::lex() {
@@ -657,12 +661,18 @@ FormatToken *FormatTokenLexer::getNextToken() {
   }
 
   if (Style.isCpp()) {
-    if (!(Tokens.size() > 0 && Tokens.back()->Tok.getIdentifierInfo() &&
+    const bool mayBeKeywordAlias =
+        !(Tokens.size() > 0 && Tokens.back()->Tok.getIdentifierInfo() &&
           Tokens.back()->Tok.getIdentifierInfo()->getPPKeywordID() ==
-              tok::pp_define) &&
+              tok::pp_define);
+    if (mayBeKeywordAlias &&
         std::find(ForEachMacros.begin(), ForEachMacros.end(),
                   FormatTok->Tok.getIdentifierInfo()) != ForEachMacros.end()) {
       FormatTok->Type = TT_ForEachMacro;
+    } else if (mayBeKeywordAlias &&
+        std::find(NewOperatorMacros.begin(), NewOperatorMacros.end(),
+                  FormatTok->Tok.getIdentifierInfo()) != NewOperatorMacros.end()) {
+      FormatTok->Type = TT_NewOperatorMacro;
     } else if (FormatTok->is(tok::identifier)) {
       if (MacroBlockBeginRegex.match(Text)) {
         FormatTok->Type = TT_MacroBlockBegin;
