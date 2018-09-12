@@ -703,11 +703,6 @@ void WhitespaceManager::fixLineBreaksBetweenBlocks() {
     return false;
   };
 
-#define M(X)                                                                   \
-  do {                                                                         \
-    (X);                                                                       \
-  } while (0)
-
   auto mustInsertAfter = [&](unsigned &Index) {
     unsigned e = Changes.size();
     for (unsigned i = Index; i != e; i++) {
