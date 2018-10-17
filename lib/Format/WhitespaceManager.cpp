@@ -795,7 +795,7 @@ void WhitespaceManager::fixLineBreaksBetweenBlocks() {
         }
       }
 
-      if (Changes[Last].Tok->is(tok::semi))
+      if (Last != e && Changes[Last].Tok->is(tok::semi))
         Last++;
     }
 

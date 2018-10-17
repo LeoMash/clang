@@ -12708,6 +12708,8 @@ TEST_F(FormatTest, FormatMinEmptyLinesBetweenFunctions) {
                "_ELSE\n\n\n\nint Bar() {\n  int b = 0;\n  return b;\n}",
                Style);
 
+  verifyFormat("struct Struct {\n   enum {};\n};", Style);
+
   // multiline macro-define
   verifyFormat("#define M(X) \\\n"
                "  do {       \\\n"
